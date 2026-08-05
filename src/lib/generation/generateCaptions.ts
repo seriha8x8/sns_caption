@@ -1,63 +1,59 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI, Type, type Schema } from "@google/genai";
 import type { AnalysisResult } from "@/lib/analysis";
 import type { GenerationResult, GenreWithSettings } from "@/lib/types";
 import { buildSystemPrompt, buildUserText } from "./prompt";
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-const CAPTIONS_TOOL: Anthropic.Tool = {
-  name: "submit_captions",
-  description: "生成したSNS投稿文案を構造化データとして提出する",
-  input_schema: {
-    type: "object",
-    properties: {
-      youtube: {
-        type: "object",
-        properties: {
-          titles: {
-            type: "array",
-            items: { type: "string" },
-            description: "タイトル案のリスト",
-          },
-          description: {
-            type: "string",
-            description: "概要欄の本文。固定フッターは含めない。",
-          },
-          tags: {
-            type: "array",
-            items: { type: "string" },
-            description: "タグ欄用のキーワードのリスト(#は付けない)",
-          },
+const RESPONSE_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    youtube: {
+      type: Type.OBJECT,
+      properties: {
+        titles: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "タイトル案のリスト",
         },
-        required: ["titles", "description", "tags"],
-      },
-      instagram: {
-        type: "object",
-        properties: {
-          caption: { type: "string" },
-          hashtags: {
-            type: "array",
-            items: { type: "string" },
-            description: "#を含まないハッシュタグのリスト",
-          },
+        description: {
+          type: Type.STRING,
+          description: "概要欄の本文。固定フッターは含めない。",
         },
-        required: ["caption", "hashtags"],
-      },
-      tiktok: {
-        type: "object",
-        properties: {
-          caption: { type: "string" },
-          hashtags: {
-            type: "array",
-            items: { type: "string" },
-            description: "#を含まないハッシュタグのリスト",
-          },
+        tags: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "タグ欄用のキーワードのリスト(#は付けない)",
         },
-        required: ["caption", "hashtags"],
       },
+      required: ["titles", "description", "tags"],
     },
-    required: ["youtube", "instagram", "tiktok"],
+    instagram: {
+      type: Type.OBJECT,
+      properties: {
+        caption: { type: Type.STRING },
+        hashtags: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "#を含まないハッシュタグのリスト",
+        },
+      },
+      required: ["caption", "hashtags"],
+    },
+    tiktok: {
+      type: Type.OBJECT,
+      properties: {
+        caption: { type: Type.STRING },
+        hashtags: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "#を含まないハッシュタグのリスト",
+        },
+      },
+      required: ["caption", "hashtags"],
+    },
   },
+  required: ["youtube", "instagram", "tiktok"],
 };
 
 interface RawCaptions {
@@ -66,44 +62,31 @@ interface RawCaptions {
   tiktok: { caption: string; hashtags: string[] };
 }
 
-function getAnthropicClient() {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY が設定されていません。");
+    throw new Error("GEMINI_API_KEY が設定されていません。");
   }
-  return new Anthropic({ apiKey });
+  return new GoogleGenAI({ apiKey });
 }
 
-function buildContent(
+function buildContentParts(
   analysis: AnalysisResult,
   additionalTags: string[]
-): Anthropic.MessageParam["content"] {
+) {
   const text = buildUserText(additionalTags);
 
   if (analysis.kind === "transcript") {
-    return [
-      {
-        type: "text",
-        text: `${text}\n\n# 文字起こしテキスト\n${analysis.text}`,
-      },
-    ];
+    return [{ text: `${text}\n\n# 文字起こしテキスト\n${analysis.text}` }];
   }
 
-  const imageBlocks: Anthropic.ImageBlockParam[] = analysis.frames.map(
-    (frame) => ({
-      type: "image",
-      source: {
-        type: "base64",
-        media_type: frame.mediaType,
-        data: frame.base64,
-      },
-    })
-  );
+  const imageParts = analysis.frames.map((frame) => ({
+    inlineData: { mimeType: frame.mediaType, data: frame.base64 },
+  }));
 
   return [
-    ...imageBlocks,
+    ...imageParts,
     {
-      type: "text",
       text: `${text}\n\n上記は動画から一定間隔で抽出したフレーム画像です。これらをもとに動画の内容を推測してください。`,
     },
   ];
@@ -175,29 +158,34 @@ export async function generateCaptions(params: {
   analysis: AnalysisResult;
   additionalTags: string[];
 }): Promise<GenerationResult> {
-  const client = getAnthropicClient();
+  const client = getGeminiClient();
 
-  const response = await client.messages.create({
+  const response = await client.models.generateContent({
     model: MODEL,
-    max_tokens: 4096,
-    system: buildSystemPrompt(params.genre),
-    tools: [CAPTIONS_TOOL],
-    tool_choice: { type: "tool", name: "submit_captions" },
-    messages: [
+    contents: [
       {
         role: "user",
-        content: buildContent(params.analysis, params.additionalTags),
+        parts: buildContentParts(params.analysis, params.additionalTags),
       },
     ],
+    config: {
+      systemInstruction: buildSystemPrompt(params.genre),
+      responseMimeType: "application/json",
+      responseSchema: RESPONSE_SCHEMA,
+    },
   });
 
-  const toolUse = response.content.find(
-    (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
-  );
-
-  if (!toolUse) {
-    throw new Error("AIから構造化データを取得できませんでした。");
+  const text = response.text;
+  if (!text) {
+    throw new Error("AIから応答を取得できませんでした。");
   }
 
-  return postProcess(toolUse.input as RawCaptions, params.genre);
+  let raw: RawCaptions;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error("AIの応答をJSONとして解析できませんでした。");
+  }
+
+  return postProcess(raw, params.genre);
 }

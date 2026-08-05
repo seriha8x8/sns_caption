@@ -15,7 +15,7 @@ export type AnalysisResult =
  * analysis pipeline for the given video type, then cleans up.
  *
  * - "long": extract audio track and transcribe it (Whisper).
- * - "short": extract evenly-spaced frames for vision analysis (Claude).
+ * - "short": extract evenly-spaced frames for vision analysis (Gemini).
  */
 export async function analyzeVideo(
   videoBuffer: Buffer,

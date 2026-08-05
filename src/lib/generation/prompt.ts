@@ -39,8 +39,6 @@ export function buildSystemPrompt(genre: GenreWithSettings): string {
     "# TikTok",
     tt?.caption_style ? `- キャプションのスタイル: ${tt.caption_style}` : "",
     tt?.hashtag_count != null ? `- ハッシュタグ数: ${tt.hashtag_count}個` : "",
-    "",
-    "必ず submit_captions ツールを使って結果を出力してください。ツール以外のテキストは出力しないでください。",
   ];
 
   return lines.filter((l) => l !== "").join("\n");

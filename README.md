@@ -7,7 +7,7 @@
 - Next.js (App Router) + TypeScript
 - Tailwind CSS
 - Supabase (Postgres) — ジャンル設定・生成履歴の保存
-- Anthropic Claude API — 文案生成、ショート動画のフレーム画像解析(vision)
+- Google Gemini API — 文案生成、ショート動画のフレーム画像解析(vision)
 - OpenAI Whisper API — ロング動画の音声文字起こし
 - ffmpeg (`fluent-ffmpeg` + `ffmpeg-static`) — 動画からの音声/フレーム抽出
 
@@ -38,8 +38,8 @@ cp .env.example .env.local
 | --- | --- |
 | `SUPABASE_URL` | SupabaseプロジェクトのURL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabaseの service_role キー(サーバー側のみで使用) |
-| `ANTHROPIC_API_KEY` | Claude API キー |
-| `ANTHROPIC_MODEL` | (任意)使用するClaudeモデルID。未設定時は `claude-sonnet-4-5` |
+| `GEMINI_API_KEY` | Google Gemini API キー |
+| `GEMINI_MODEL` | (任意)使用するGeminiモデルID。未設定時は `gemini-2.5-flash` |
 | `OPENAI_API_KEY` | Whisper API(音声文字起こし)用のOpenAI APIキー。ロング動画を使わない場合は省略可 |
 
 ### 4. ローカル起動
@@ -58,8 +58,8 @@ npm run dev
 
 ## 解析の仕組み
 
-- **ロング動画**: ffmpegで音声を抽出し、OpenAI Whisper APIで文字起こし → 文字起こしテキストをClaudeに渡して文案生成
-- **ショート動画**: ffmpegで一定間隔(3秒ごと、最大8枚)のフレームを抽出 → 画像をClaudeのvision機能に渡して内容を解析・文案生成
+- **ロング動画**: ffmpegで音声を抽出し、OpenAI Whisper APIで文字起こし → 文字起こしテキストをGeminiに渡して文案生成
+- **ショート動画**: ffmpegで一定間隔(3秒ごと、最大8枚)のフレームを抽出 → 画像をGeminiのvision機能に渡して内容を解析・文案生成
 
 生成ロジック(`src/lib/generation`)と将来のYouTube Data API連携(`src/lib/publish/youtube.ts`)は分離した設計にしており、`YoutubeOutput`(タイトル/概要欄/タグ)を渡すだけで非公開アップロード機能を追加できます。Instagram/TikTokは現状API連携せず、生成結果をコピーして手動投稿する運用を想定しています。
 
