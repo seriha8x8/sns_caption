@@ -12,6 +12,7 @@ export default function VideoUploadForm() {
   const [additionalTags, setAdditionalTags] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState<"" | "uploading" | "generating">("");
   const [error, setError] = useState<string | null>(null);
   const [generation, setGeneration] = useState<Generation | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,21 +51,38 @@ export default function VideoUploadForm() {
     setGeneration(null);
 
     try {
-      const formData = new FormData();
-      formData.append("genreId", genreId);
-      formData.append("videoType", videoType);
-      formData.append("video", file);
-      formData.append(
-        "additionalTags",
-        JSON.stringify(
-          additionalTags
+      setStage("uploading");
+      const uploadUrlRes = await fetch("/api/upload-url", { method: "POST" });
+      const uploadUrlData = await uploadUrlRes.json();
+      if (!uploadUrlRes.ok) {
+        throw new Error(uploadUrlData.error ?? "アップロードURLの取得に失敗しました。");
+      }
+
+      const uploadFormData = new FormData();
+      uploadFormData.append("cacheControl", "3600");
+      uploadFormData.append("", file);
+      const putRes = await fetch(uploadUrlData.signedUrl as string, {
+        method: "PUT",
+        body: uploadFormData,
+      });
+      if (!putRes.ok) {
+        throw new Error("動画のアップロードに失敗しました。");
+      }
+
+      setStage("generating");
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          genreId,
+          videoType,
+          videoPath: uploadUrlData.path,
+          additionalTags: additionalTags
             .split(/[,、]/)
             .map((t) => t.trim())
-            .filter(Boolean)
-        )
-      );
-
-      const res = await fetch("/api/generate", { method: "POST", body: formData });
+            .filter(Boolean),
+        }),
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -76,6 +94,7 @@ export default function VideoUploadForm() {
       setError(err instanceof Error ? err.message : "生成に失敗しました。");
     } finally {
       setLoading(false);
+      setStage("");
     }
   }
 
@@ -167,7 +186,11 @@ export default function VideoUploadForm() {
           disabled={loading}
           className="rounded-full bg-lavender px-6 py-2.5 text-sm font-semibold text-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {loading ? "生成中..." : "生成する"}
+          {loading
+            ? stage === "uploading"
+              ? "アップロード中..."
+              : "生成中..."
+            : "生成する"}
         </button>
       </form>
 

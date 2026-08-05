@@ -24,7 +24,9 @@ npm install
 1. [Supabase](https://supabase.com/) で無料プロジェクトを作成
 2. SQL Editorで `supabase/migrations/0001_init.sql` の内容を実行
    - `genres` / `youtube_settings` / `instagram_settings` / `tiktok_settings` / `generations` テーブルが作成され、初期ジャンル「編み物」のデータが投入されます
-3. Project Settings > API から `Project URL` と `service_role` キーを取得
+3. 続けて SQL Editorで `supabase/migrations/0002_storage.sql` の内容を実行
+   - 動画アップロード用の非公開ストレージバケット `videos` が作成されます(アップロードされた動画は生成処理後に自動削除される一時領域です)
+4. Project Settings > API から `Project URL` と `service_role` キーを取得
 
 ### 3. 環境変数の設定
 
@@ -55,6 +57,15 @@ npm run dev
 1. **動画から生成**(`/`) — ジャンル選択・動画種別選択・動画アップロード・追加タグ入力を行い、生成結果をSNSごとに表示。生成完了時に自動的に履歴へ保存されます。
 2. **ジャンル設定**(`/genres`) — ジャンルごとのターゲット層・トーンと、YouTube/Instagram/TikTok別の生成ルールを管理します。
 3. **生成履歴**(`/history`) — 過去の生成結果を新しい順に一覧表示。クリックで詳細表示、削除も可能です。
+
+## 動画アップロードの仕組み
+
+Vercelのサーバーレス関数はリクエストボディのサイズに上限(数MB程度)があるため、動画ファイルを直接 `/api/generate` に送ると失敗します。そのため、以下の流れでアップロードします。
+
+1. ブラウザが `/api/generate` ではなく `/api/upload-url` を呼び、Supabase Storageの署名付きアップロードURLを取得
+2. ブラウザから**直接**そのURLへ動画ファイルをPUT(Vercelの関数を経由しないので、サイズ上限の影響を受けない)
+3. ブラウザは動画の保存パスだけを `/api/generate` にJSONで送信
+4. サーバー側でそのパスから動画をダウンロードして解析・文案生成し、処理後に一時ファイルを削除
 
 ## 解析の仕組み
 
