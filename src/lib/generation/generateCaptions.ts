@@ -3,7 +3,7 @@ import type { AnalysisResult } from "@/lib/analysis";
 import type { GenerationResult, GenreWithSettings } from "@/lib/types";
 import { buildSystemPrompt, buildUserText } from "./prompt";
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
 const RESPONSE_SCHEMA: Schema = {
   type: Type.OBJECT,

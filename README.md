@@ -41,7 +41,7 @@ cp .env.example .env.local
 | `SUPABASE_URL` | SupabaseプロジェクトのURL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabaseの service_role キー(サーバー側のみで使用) |
 | `GEMINI_API_KEY` | Google Gemini API キー |
-| `GEMINI_MODEL` | (任意)使用するGeminiモデルID。未設定時は `gemini-2.5-flash` |
+| `GEMINI_MODEL` | (任意)使用するGeminiモデルID。未設定時は `gemini-3.5-flash` |
 | `OPENAI_API_KEY` | Whisper API(音声文字起こし)用のOpenAI APIキー。ロング動画を使わない場合は省略可 |
 
 ### 4. ローカル起動
